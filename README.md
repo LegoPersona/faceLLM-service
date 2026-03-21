@@ -17,7 +17,6 @@ It receives an uploaded image file, processes it, and outputs a strictly formatt
 facellm_service/
 ├── main.py               # FastAPI application entry point and routes
 ├── model_handler.py      # Logic for loading Idiap/FaceLLM-8B and generating prompts
-├── requirements.txt      # Project dependencies
 └── README.md             # Service documentation
 ```
 
