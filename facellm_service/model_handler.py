@@ -2,28 +2,37 @@ import json
 import re
 import torch
 import io
+import torchvision.transforms as T
 from PIL import Image
-from transformers import AutoProcessor, AutoModelForCausalLM
+from torchvision.transforms.functional import InterpolationMode
+from transformers import AutoTokenizer, AutoModel
 
 MODEL_ID = "Idiap/FaceLLM-8B"
 
-print(f"Loading model {MODEL_ID}... This might take a minute.")
+print(f"Loading tokenizer and model {MODEL_ID}... This might take a minute.")
 
-processor = AutoProcessor.from_pretrained(MODEL_ID, trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(
+# FaceLLM uses InternVL architecture, which requires AutoTokenizer and AutoModel
+tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
+model = AutoModel.from_pretrained(
     MODEL_ID,
-    torch_dtype=torch.float16, 
-    device_map="auto",
-    trust_remote_code=True
-)
+    torch_dtype=torch.float16,
+    low_cpu_mem_usage=True,
+    trust_remote_code=True,
+    device_map="auto"
+).eval()
 print("Model loaded successfully!")
 
+def build_transform(input_size=448):
+    """Image preprocessing required by the InternVL architecture."""
+    MEAN, STD = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+    return T.Compose([
+        T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+        T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
+        T.ToTensor(),
+        T.Normalize(mean=MEAN, std=STD)
+    ])
 
 def generate_prompt():
-    """
-    Uses Chain of Thought (CoT) prompting within the JSON structure to force the model 
-    to visually analyze the face BEFORE committing to the strict boolean/categorical values.
-    """
     return """You are an expert computer vision assistant. Analyze the face in the image carefully.
 
 You MUST output ONLY a valid JSON object. Do not include markdown formatting.
@@ -37,7 +46,6 @@ Follow this exact schema. Pay special attention to the 'analysis' field: describ
     "beard": "Yes" | "No"
 }"""
 
-
 def extract_json_from_text(text: str) -> dict:
     try:
         return json.loads(text)
@@ -50,42 +58,27 @@ def extract_json_from_text(text: str) -> dict:
                 pass
         raise ValueError(f"Could not parse valid JSON from model output. Raw output: {text}")
 
-
 def analyze_face(image_bytes: bytes) -> dict:
-    """
-    Processes the image bytes, queries the FaceLLM, and returns the attributes as a dictionary.
-    """
     try:
+        # Load image
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        
+        # Preprocess the image to tensor for InternVL
+        transform = build_transform()
+        pixel_values = transform(image).unsqueeze(0).to(model.device, dtype=torch.float16)
+        
         prompt_text = generate_prompt()
         
-        messages = [
-            {"role": "user", "content": [
-                {"type": "image"},
-                {"type": "text", "text": prompt_text}
-            ]}
-        ]
+        # Generation config
+        generation_config = dict(max_new_tokens=150, do_sample=False, temperature=0.1)
         
-        prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
-        inputs = processor(text=prompt, images=image, return_tensors="pt").to(model.device)
+        # FaceLLM / InternVL inference uses the built-in chat method
+        response, history = model.chat(tokenizer, pixel_values, prompt_text, generation_config)
         
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=150,
-                temperature=0.1, 
-                do_sample=False
-            )
-            
-        generated_ids = outputs[0][inputs["input_ids"].shape[1]:]
-        generated_text = processor.decode(generated_ids, skip_special_tokens=True).strip()
+        print(f"DEBUG - Raw output with analysis:\n{response}")
         
-        print(f"DEBUG - Raw output with analysis:\n{generated_text}")
-        
-        result_dict = extract_json_from_text(generated_text)
-        
+        result_dict = extract_json_from_text(response)
         result_dict.pop("analysis", None)
-        
         return result_dict
 
     except Exception as e:
