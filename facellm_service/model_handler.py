@@ -4,22 +4,24 @@ import io
 
 def generate_prompt():
     """
-    Creates a strict prompt to ensure the LLM returns ONLY a JSON object
-    with the exact attributes required by the Lego Service.
+    Creates an enhanced, strict prompt to ensure the LLM returns ONLY a JSON object.
+    Includes explicit instructions to prevent common visual hallucinations (like phantom beards).
     """
-    return """
-    You are an expert computer vision assistant. Analyze the provided image of a person's face.
-    You MUST extract the visual features and output them strictly as a JSON object.
-    Do NOT output any conversational text, markdown formatting (like ```json), or explanations. 
-    Return ONLY a raw JSON dictionary matching this exact schema:
+    return """You are an expert computer vision assistant. Carefully analyze the provided image of a person's face.
 
-    {
-        "hair_color": "Black" | "Brown" | "Blonde" | "Red" | "Gray" | "White" | "Bald",
-        "skin_tone": "Light" | "Medium" | "Dark",
-        "glasses": "Yes" | "No",
-        "beard": "Yes" | "No"
-    }
-    """
+CRITICAL INSTRUCTIONS FOR ANALYSIS:
+1. Pay extreme attention to the chin, jawline, and cheeks. 
+2. If the skin is smooth, clear, or showing typical makeup without any visible facial hair, "beard" MUST be exactly "No".
+3. Look closely at the eyes. If there are no frames resting on the nose/ears, "glasses" MUST be exactly "No".
+
+Output the facial attributes strictly as a JSON object. Do NOT add markdown formatting (like ```json), explanations, or any extra text outside the braces.
+The JSON must exactly match this format and use ONLY these allowed values:
+{
+    "hair_color": "Black" | "Brown" | "Blonde" | "Red" | "Gray" | "White" | "Bald",
+    "skin_tone": "Light" | "Medium" | "Dark",
+    "glasses": "Yes" | "No",
+    "beard": "Yes" | "No"
+}"""
 
 def analyze_face(image_bytes: bytes) -> dict:
     """
