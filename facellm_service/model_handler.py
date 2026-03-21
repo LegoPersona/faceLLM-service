@@ -9,7 +9,7 @@ MODEL_ID = "Idiap/FaceLLM-8B"
 
 print(f"Loading model {MODEL_ID}... This might take a minute.")
 
-processor = AutoProcessor.from_pretrained(MODEL_ID)
+processor = AutoProcessor.from_pretrained(MODEL_ID, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
     torch_dtype=torch.float16, 
