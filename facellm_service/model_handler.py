@@ -45,7 +45,7 @@ def analyze_face(image_bytes: bytes) -> dict:
         with torch.no_grad():
             outputs = model.generate(
                 **inputs,
-                max_new_tokens=150, # הגדלנו קצת כדי שיהיה לו מקום לכתוב את הניתוח
+                max_new_tokens=150,
                 temperature=0.1, 
                 do_sample=False
             )
@@ -55,10 +55,8 @@ def analyze_face(image_bytes: bytes) -> dict:
         
         print(f"DEBUG - Raw output with analysis:\n{generated_text}")
         
-        # חילוץ ה-JSON
         result_dict = extract_json_from_text(generated_text)
         
-        # מחיקת שדה ה"מחשבה" (analysis) כדי לא לשבור את הפורמט ששאר המערכת מצפה לו
         result_dict.pop("analysis", None)
         
         return result_dict
