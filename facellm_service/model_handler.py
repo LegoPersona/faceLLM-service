@@ -4,19 +4,16 @@ import io
 
 def generate_prompt():
     """
-    Creates an enhanced, strict prompt to ensure the LLM returns ONLY a JSON object.
-    Includes explicit instructions to prevent common visual hallucinations (like phantom beards).
+    Uses Chain of Thought (CoT) prompting within the JSON structure to force the model 
+    to visually analyze the face BEFORE committing to the strict boolean/categorical values.
     """
-    return """You are an expert computer vision assistant. Carefully analyze the provided image of a person's face.
+    return """You are an expert computer vision assistant. Analyze the face in the image carefully.
 
-CRITICAL INSTRUCTIONS FOR ANALYSIS:
-1. Pay extreme attention to the chin, jawline, and cheeks. 
-2. If the skin is smooth, clear, or showing typical makeup without any visible facial hair, "beard" MUST be exactly "No".
-3. Look closely at the eyes. If there are no frames resting on the nose/ears, "glasses" MUST be exactly "No".
+You MUST output ONLY a valid JSON object. Do not include markdown formatting.
+Follow this exact schema. Pay special attention to the 'analysis' field: describe the skin smoothness and presence/absence of facial hair first.
 
-Output the facial attributes strictly as a JSON object. Do NOT add markdown formatting (like ```json), explanations, or any extra text outside the braces.
-The JSON must exactly match this format and use ONLY these allowed values:
 {
+    "analysis": "Briefly describe the face here, specifically noting if the skin is smooth or if there is any actual facial hair/beard...",
     "hair_color": "Black" | "Brown" | "Blonde" | "Red" | "Gray" | "White" | "Bald",
     "skin_tone": "Light" | "Medium" | "Dark",
     "glasses": "Yes" | "No",
@@ -25,20 +22,46 @@ The JSON must exactly match this format and use ONLY these allowed values:
 
 def analyze_face(image_bytes: bytes) -> dict:
     """
-    Processes the image bytes and queries the FaceLLM.
+    Processes the image bytes, queries the FaceLLM, and returns the attributes as a dictionary.
     """
     try:
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        prompt = generate_prompt()
+        import io
+        from PIL import Image
+        import torch
         
-        # TODO: code that calls to Idiap/FaceLLM-8B
-        # Example of response of the model
-        mock_response_from_llm = '{"hair_color": "Brown", "skin_tone": "Medium", "glasses": "No", "beard": "Yes"}'
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        prompt_text = generate_prompt()
+        
+        messages = [
+            {"role": "user", "content": [
+                {"type": "image"},
+                {"type": "text", "text": prompt_text}
+            ]}
+        ]
+        
+        prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+        inputs = processor(text=prompt, images=image, return_tensors="pt").to(model.device)
+        
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=150, # הגדלנו קצת כדי שיהיה לו מקום לכתוב את הניתוח
+                temperature=0.1, 
+                do_sample=False
+            )
+            
+        generated_ids = outputs[0][inputs["input_ids"].shape[1]:]
+        generated_text = processor.decode(generated_ids, skip_special_tokens=True).strip()
+        
+        print(f"DEBUG - Raw output with analysis:\n{generated_text}")
+        
+        # חילוץ ה-JSON
+        result_dict = extract_json_from_text(generated_text)
+        
+        # מחיקת שדה ה"מחשבה" (analysis) כדי לא לשבור את הפורמט ששאר המערכת מצפה לו
+        result_dict.pop("analysis", None)
+        
+        return result_dict
 
-        attributes = json.loads(mock_response_from_llm)
-        return attributes
-
-    except json.JSONDecodeError:
-        raise ValueError("The LLM did not return a valid JSON format.")
     except Exception as e:
-        raise RuntimeError(f"Failed to process image: {str(e)}")
+        raise RuntimeError(f"Failed to process image with LLM: {str(e)}")
