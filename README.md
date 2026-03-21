@@ -22,4 +22,9 @@ facellm_service/
 ```
 
 ## 🚀 How to Run (Local)
-...
+1. pip install all tech-stack (requirements.txt)
+2. run
+```bash
+python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+3. to swagger: http://localhost:8000/docs
