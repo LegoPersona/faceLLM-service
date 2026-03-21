@@ -1,6 +1,23 @@
 import json
-from PIL import Image
+import re
+import torch
 import io
+from PIL import Image
+from transformers import AutoProcessor, AutoModelForCausalLM
+
+MODEL_ID = "Idiap/FaceLLM-8B"
+
+print(f"Loading model {MODEL_ID}... This might take a minute.")
+
+# טעינה גלובלית כדי שהפונקציה תכיר את המשתנים האלו
+processor = AutoProcessor.from_pretrained(MODEL_ID)
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_ID,
+    torch_dtype=torch.float16, 
+    device_map="auto"
+)
+print("Model loaded successfully!")
+
 
 def generate_prompt():
     """
@@ -20,15 +37,25 @@ Follow this exact schema. Pay special attention to the 'analysis' field: describ
     "beard": "Yes" | "No"
 }"""
 
+
+def extract_json_from_text(text: str) -> dict:
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError:
+                pass
+        raise ValueError(f"Could not parse valid JSON from model output. Raw output: {text}")
+
+
 def analyze_face(image_bytes: bytes) -> dict:
     """
     Processes the image bytes, queries the FaceLLM, and returns the attributes as a dictionary.
     """
     try:
-        import io
-        from PIL import Image
-        import torch
-        
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         prompt_text = generate_prompt()
         
@@ -55,8 +82,10 @@ def analyze_face(image_bytes: bytes) -> dict:
         
         print(f"DEBUG - Raw output with analysis:\n{generated_text}")
         
+        # חילוץ ה-JSON
         result_dict = extract_json_from_text(generated_text)
         
+        # מחיקת שדה ה"מחשבה" (analysis) כדי לא לשבור את הפורמט
         result_dict.pop("analysis", None)
         
         return result_dict
