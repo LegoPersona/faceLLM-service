@@ -9,6 +9,7 @@ It receives an uploaded image file, processes it, and outputs a strictly formatt
 * uvicorn
 * python-multipart
 * transformers
+* accelerate
 * torch
 * Pillow
 
