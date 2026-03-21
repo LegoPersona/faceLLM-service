@@ -9,12 +9,12 @@ MODEL_ID = "Idiap/FaceLLM-8B"
 
 print(f"Loading model {MODEL_ID}... This might take a minute.")
 
-# טעינה גלובלית כדי שהפונקציה תכיר את המשתנים האלו
 processor = AutoProcessor.from_pretrained(MODEL_ID)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
     torch_dtype=torch.float16, 
     device_map="auto"
+    trust_remote_code=True
 )
 print("Model loaded successfully!")
 
@@ -82,10 +82,8 @@ def analyze_face(image_bytes: bytes) -> dict:
         
         print(f"DEBUG - Raw output with analysis:\n{generated_text}")
         
-        # חילוץ ה-JSON
         result_dict = extract_json_from_text(generated_text)
         
-        # מחיקת שדה ה"מחשבה" (analysis) כדי לא לשבור את הפורמט
         result_dict.pop("analysis", None)
         
         return result_dict
