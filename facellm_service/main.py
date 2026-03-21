@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 import uvicorn
-from model_handler import analyze_face # הוספנו את הייבוא הזה
+from model_handler import analyze_face
 
 app = FastAPI(title="FaceLLM Service", description="Microservice for LegoPersona to extract facial attributes")
 
@@ -8,7 +8,6 @@ app = FastAPI(title="FaceLLM Service", description="Microservice for LegoPersona
 def health_check():
     return {"status": "healthy", "service": "FaceLLM"}
 
-# הוספנו את הראוט הזה
 @app.post("/api/v1/extract-attributes")
 async def extract_facial_attributes(image_file: UploadFile = File(...)):
     """
