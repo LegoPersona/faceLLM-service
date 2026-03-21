@@ -32,8 +32,7 @@ def analyze_face(image_bytes: bytes) -> dict:
         # TODO: code that calls to Idiap/FaceLLM-8B
         # Example of response of the model
         mock_response_from_llm = '{"hair_color": "Brown", "skin_tone": "Medium", "glasses": "No", "beard": "Yes"}'
-        
-        # המרת התשובה מסטרינג למילון Python
+
         attributes = json.loads(mock_response_from_llm)
         return attributes
 
