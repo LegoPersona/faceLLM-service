@@ -1,43 +1,31 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-import uvicorn
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from model_handler import analyze_face
+import uvicorn
 
-app = FastAPI(
-    title="FaceLLM Service", 
-    description="Microservice for LegoPersona to extract facial attributes from images."
+app = FastAPI(title="LegoPersona Face Analysis API")
+
+# Allow cors from browser
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-@app.get("/health")
-def health_check():
-    """Simple health check endpoint."""
-    return {"status": "healthy", "service": "FaceLLM"}
-
 @app.post("/api/v1/extract-attributes")
-async def extract_facial_attributes(image_file: UploadFile = File(...)):
-    """
-    Receives an uploaded image, passes it to the FaceLLM, 
-    and returns a JSON of facial attributes.
-    """
-    # Verify that the uploaded file is actually an image
+async def extract_attributes(image_file: UploadFile = File(...)):
     if not image_file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Uploaded file is not an image.")
+        raise HTTPException(status_code=400, detail="File must be an image")
     
     try:
-        # Read image bytes asynchronously
         image_bytes = await image_file.read()
         
-        # Pass the image to the model logic for analysis
-        attributes = analyze_face(image_bytes)
+        result = analyze_face(image_bytes)
+        return result
         
-        # FastAPI will automatically serialize this dictionary to JSON
-        return attributes
-        
-    except ValueError as ve:
-        # Handle cases where the model couldn't return a valid JSON format
-        raise HTTPException(status_code=422, detail=str(ve))
     except Exception as e:
-        # Catch-all for unexpected server or model errors
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

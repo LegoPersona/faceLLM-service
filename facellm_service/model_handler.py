@@ -1,85 +1,44 @@
 import json
 import re
-import torch
 import io
-import torchvision.transforms as T
 from PIL import Image
-from torchvision.transforms.functional import InterpolationMode
-from transformers import AutoTokenizer, AutoModel
+import google.generativeai as genai
 
-MODEL_ID = "Idiap/FaceLLM-8B"
+GOOGLE_API_KEY = "AIzaSyAcQ7epIN7R0b8HSKKgYk9gw5J4Z18uUDk"
+genai.configure(api_key=GOOGLE_API_KEY)
 
-print(f"Loading tokenizer and model {MODEL_ID}... This might take a minute.")
-
-# FaceLLM uses InternVL architecture, which requires AutoTokenizer and AutoModel
-tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
-model = AutoModel.from_pretrained(
-    MODEL_ID,
-    torch_dtype=torch.float16,
-    low_cpu_mem_usage=True,
-    trust_remote_code=True,
-    device_map="auto"
-).eval()
-print("Model loaded successfully!")
-
-def build_transform(input_size=448):
-    """Image preprocessing required by the InternVL architecture."""
-    MEAN, STD = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
-    return T.Compose([
-        T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
-        T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
-        T.ToTensor(),
-        T.Normalize(mean=MEAN, std=STD)
-    ])
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def generate_prompt():
-    return """You are an expert computer vision assistant. Analyze the face in the image carefully.
+    return """Analyze the person in the image. 
+    IMPORTANT: Only provide details for items that are clearly visible in the image.
+    If the image is a close-up of a face and clothes/pants are not visible, set their values to null.
 
-You MUST output ONLY a valid JSON object. Do not include markdown formatting.
-Follow this exact schema. Pay special attention to the 'analysis' field: describe the skin smoothness and presence/absence of facial hair first.
+    Return ONLY a valid JSON object with these fields:
+    - hair: { "color": str, "length": "Short/Medium/Long/Bald", "style": "Straight/Wavy/Curly/None" }
+    - eyebrows: { "color": str, "shape": "Thin/Thick/Arched/Straight" }
+    - eyes: { "color": str }
+    - nose: { "shape": "Straight/Hooked/Button/Wide/Small" }
+    - beard: { "present": "Yes/No", "color": str or null, "style": str or null, "shape": str or null }
+    - shirt: { "type": str or null, "color": str or null }
+    - pants: { "type": str or null, "color": str or null }
+    - glasses: "Yes/No"
+    - skin_tone: "Light/Medium/Dark"
 
-{
-    "analysis": "Briefly describe the face here, specifically noting if the skin is smooth or if there is any actual facial hair/beard...",
-    "hair_color": "Black" | "Brown" | "Blonde" | "Red" | "Gray" | "White" | "Bald",
-    "skin_tone": "Light" | "Medium" | "Dark",
-    "glasses": "Yes" | "No",
-    "beard": "Yes" | "No"
-}"""
-
-def extract_json_from_text(text: str) -> dict:
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group(0))
-            except json.JSONDecodeError:
-                pass
-        raise ValueError(f"Could not parse valid JSON from model output. Raw output: {text}")
+    Output only the JSON."""
 
 def analyze_face(image_bytes: bytes) -> dict:
     try:
-        # Load image
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        image = Image.open(io.BytesIO(image_bytes))
         
-        # Preprocess the image to tensor for InternVL
-        transform = build_transform()
-        pixel_values = transform(image).unsqueeze(0).to(model.device, dtype=torch.float16)
+        response = model.generate_content([generate_prompt(), image])
+        text_response = response.text
         
-        prompt_text = generate_prompt()
-        
-        # Generation config
-        generation_config = dict(max_new_tokens=150, do_sample=False, temperature=0.1)
-        
-        # FaceLLM / InternVL inference uses the built-in chat method
-        response, history = model.chat(tokenizer, pixel_values, prompt_text, generation_config)
-        
-        print(f"DEBUG - Raw output with analysis:\n{response}")
-        
-        result_dict = extract_json_from_text(response)
-        result_dict.pop("analysis", None)
-        return result_dict
+        json_match = re.search(r'\{.*\}', text_response, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group(0))
+            
+        return json.loads(text_response)
 
     except Exception as e:
-        raise RuntimeError(f"Failed to process image with LLM: {str(e)}")
+        raise RuntimeError(f"Error during AI analysis: {str(e)}")
