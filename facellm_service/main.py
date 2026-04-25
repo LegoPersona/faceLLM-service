@@ -14,17 +14,22 @@ app.add_middleware(
 
 @app.post("/api/v1/extract-attributes")
 async def extract_attributes(image_file: UploadFile = File(...)):
-    if not image_file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
+    print(f"DEBUG - Endpoint: Received file: {image_file.filename}, ContentType: {image_file.content_type}")
     
+    if not image_file.content_type.startswith("image/"):
+        print(f"ERROR - Endpoint: Invalid content type: {image_file.content_type}")
+        raise HTTPException(status_code=400, detail="File must be an image")
+
     try:
         image_bytes = await image_file.read()
+        print(f"DEBUG - Endpoint: Read image bytes. Size: {len(image_bytes)} bytes")
         
-        raw_json = analyze_face(image_bytes)
+        result = analyze_face(image_bytes)
         
-        return raw_json
-        
+        print(f"DEBUG - Endpoint: Analysis complete. Result: {result}")
+        return result
     except Exception as e:
+        print(f"ERROR - Endpoint: Exception occurred: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
