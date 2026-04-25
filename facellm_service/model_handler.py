@@ -15,29 +15,13 @@ For each feature, write a short 2-4 word phrase capturing only the most visually
 
 Return ONLY a valid JSON object with these exact fields:
 
-- hair:
-  - "style": haircut style and length (e.g. "short side part", "long wavy")
-  - "color": hair color, or null if bald
-
-- eyebrows:
-  - "shape": shape and thickness
-  - "color": color
-
-- eyes:
-  - "color": iris color
-
-- nose:
-  - "shape": nose shape
-
-- beard:
-  - "style": facial hair style
-  - "color": color, or null if none
-
-- shirt:
-  - "color": color and basic pattern if any
-
-- pants:
-  - "color": color
+- hair: combined style, length, and color (e.g. "short black side part")
+- eyebrows: combined shape and color (e.g. "thick dark brown")
+- eyes: iris color
+- nose: nose shape
+- beard: combined style and color, or "none" if no facial hair (e.g. "full black beard")
+- shirt: color and basic pattern if any
+- pants: color
 
 Output only the raw JSON. No markdown, no explanations."""
 
