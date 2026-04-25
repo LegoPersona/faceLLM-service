@@ -20,7 +20,7 @@ async def extract_attributes(image_file: UploadFile = File(...)):
     try:
         image_bytes = await image_file.read()
         
-        raw_json = await analyze_face(image_bytes)
+        raw_json = analyze_face(image_bytes)
         
         return raw_json
         

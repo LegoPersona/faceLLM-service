@@ -9,21 +9,37 @@ GOOGLE_API_KEY = "AIzaSyAcQ7epIN7R0b8HSKKgYk9gw5J4Z18uUDk"
 client = genai.Client(api_key=GOOGLE_API_KEY)
 
 def generate_prompt():
-    return """Analyze the person in the image. 
-    You are building a Lego character avatar. You MUST map the person's features STRICTLY to the available options provided below. 
-    Do not invent categories, colors, or styles. If a feature does not match exactly, choose the closest available option.
+    return """Analyze the person in the image and describe their physical features to build a Lego character avatar.
 
-    Return ONLY a valid JSON object with these exact fields and STRICTLY allowed values:
-    
-    - hair: { "style": "Bald" or "Medium_Curly", "color": "Black" or "Brown" or "Yellow" or null (if Bald) }
-    - eyebrows: { "shape": "Round" or "Straight", "color": "Black" or "Brown" or "Yellow" }
-    - eyes: { "color": "Black" or "Brown" or "Green" }
-    - nose: { "shape": "Long" or "Pointy" or "Round" }
-    - beard: { "style": "French" or "Full" or "None", "color": "Black" or "Brown" or "Yellow" or null (if None) }
-    - shirt: { "color": "Blue" or "Green" or "Red" }
-    - pants: { "color": "Black" or "Blue" or "Red" }
+For each feature, write a short 2-4 word phrase capturing only the most visually distinctive attributes. These descriptions will be used for semantic vector search to find matching Lego pieces.
 
-    Output only the raw JSON. No markdown, no explanations."""
+Return ONLY a valid JSON object with these exact fields:
+
+- hair:
+  - "style": haircut style and length (e.g. "short side part", "long wavy")
+  - "color": hair color, or null if bald
+
+- eyebrows:
+  - "shape": shape and thickness
+  - "color": color
+
+- eyes:
+  - "color": iris color
+
+- nose:
+  - "shape": nose shape
+
+- beard:
+  - "style": facial hair style
+  - "color": color, or null if none
+
+- shirt:
+  - "color": color and basic pattern if any
+
+- pants:
+  - "color": color
+
+Output only the raw JSON. No markdown, no explanations."""
 
 def analyze_face(image_bytes: bytes) -> dict:
     try:
