@@ -22,15 +22,15 @@ hf_client = OpenAI(
 def generate_prompt():
     return """Analyze the person in the image and describe their physical features to build a Lego character avatar.
 
-For each feature, write a short 2-4 word phrase capturing only the most visually distinctive attributes. These descriptions will be used for semantic vector search to find matching Lego pieces.
+For each feature, write a short 2-6 word phrase capturing only the most visually distinctive attributes. These descriptions will be used for semantic vector search to find matching Lego pieces.
 
 Return ONLY a valid JSON object with these exact fields:
 
-- hair: combined style, length, and color (e.g. "short black side part")
-- eyebrows: combined shape and color (e.g. "thick dark brown")
+- hair: color, haircut name if identifiable (e.g. "bob", "mohawk", "pompadour"), combined with style (straight/wavy/curly/slicked), length (short/medium/long). Example: "black short slicked pompadour" or "blonde long wavy"
+- eyebrows: combined shape and color (e.g. "thick brown")
 - eyes: iris color
 - nose: nose shape
-- beard: combined style and color, or "none" if no facial hair (e.g. "full black beard")
+- beard: color and combined style, or "none" if no facial hair (e.g. "black full beard")
 - shirt: color and basic pattern if any
 - pants: color
 
