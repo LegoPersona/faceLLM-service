@@ -46,71 +46,46 @@ def _image_to_data_url(image_bytes: bytes) -> str:
 
 
 def _parse_json(text: str) -> dict:
-    print(f"DEBUG - JSON Parser: Attempting to parse: {text[:200]}..." if len(text) > 200 else f"DEBUG - JSON Parser: Attempting to parse: {text}")
-    
     json_match = re.search(r'\{.*\}', text, re.DOTALL)
     if json_match:
-        print(f"DEBUG - JSON Parser: Found JSON object via regex")
         try:
-            result = json.loads(json_match.group(0))
-            print(f"DEBUG - JSON Parser: Successfully parsed via regex")
-            return result
+            return json.loads(json_match.group(0))
         except Exception as e:
-            print(f"ERROR - JSON Parser: Failed to parse regex match: {e}")
+            print(f"ERROR - JSON Parser: Failed to parse: {e}")
             raise
-    
-    print(f"DEBUG - JSON Parser: No JSON object found via regex, trying direct parse")
+
     try:
-        result = json.loads(text)
-        print(f"DEBUG - JSON Parser: Successfully parsed directly")
-        return result
+        return json.loads(text)
     except Exception as e:
-        print(f"ERROR - JSON Parser: Failed direct parse: {e}")
+        print(f"ERROR - JSON Parser: Failed to parse: {e}")
         raise
 
 
 def _analyze_face_genai(image_bytes: bytes) -> dict:
-    print(f"DEBUG - GenAI: Starting image analysis. Image size: {len(image_bytes)} bytes")
     image = Image.open(io.BytesIO(image_bytes))
-    print(f"DEBUG - GenAI: Image loaded. Format: {image.format}, Size: {image.size}")
-    
     try:
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[generate_prompt(), image],
         )
-        print(f"DEBUG - GenAI: API request completed successfully")
     except Exception as e:
         print(f"ERROR - GenAI: API request failed: {e}")
         raise
-    
-    print(f"DEBUG - GenAI: Response object: {response}")
-    print(f"DEBUG - GenAI: Response text length: {len(response.text)}")
-    print(f"DEBUG - GenAI: Raw GenAI Response:\n{response.text}")
-    
+
     try:
-        result = _parse_json(response.text)
-        print(f"DEBUG - GenAI: Successfully parsed response")
-        return result
+        return _parse_json(response.text)
     except Exception as e:
         print(f"ERROR - GenAI: Failed to parse response: {e}")
         raise
 
 
 def _analyze_face_huggingface(image_bytes: bytes) -> dict:
-    print(f"DEBUG - HF: Starting image analysis. Image size: {len(image_bytes)} bytes")
-    
     try:
-        print(f"DEBUG - HF: Creating data URL from image...")
         data_url = _image_to_data_url(image_bytes)
-        print(f"DEBUG - HF: Data URL created successfully. Length: {len(data_url)}")
     except Exception as e:
         print(f"ERROR - HF: Failed to create data URL: {e}")
         raise
-    
-    print(f"DEBUG - HF: Model being used: {HF_MODEL}")
-    print(f"DEBUG - HF: Sending request to HF API...")
-    
+
     try:
         completion = hf_client.chat.completions.create(
             model=HF_MODEL,
@@ -124,53 +99,103 @@ def _analyze_face_huggingface(image_bytes: bytes) -> dict:
                 }
             ],
         )
-        print(f"DEBUG - HF: API request completed successfully")
     except Exception as e:
         print(f"ERROR - HF: API request failed: {e}")
         raise
-    
-    print(f"DEBUG - HF: Completion object: {completion}")
-    print(f"DEBUG - HF: Choices length: {len(completion.choices)}")
-    
+
     if not completion.choices:
-        print(f"ERROR - HF: No choices in response")
         raise ValueError("HF API returned no choices")
-    
-    message = completion.choices[0].message
-    print(f"DEBUG - HF: Message object: {message}")
-    print(f"DEBUG - HF: Message content: {message.content}")
-    print(f"DEBUG - HF: Message content type: {type(message.content)}")
-    print(f"DEBUG - HF: Message content length: {len(message.content) if message.content else 0}")
-    
-    text_response = message.content
-    
+
+    text_response = completion.choices[0].message.content
     if not text_response:
-        print(f"ERROR - HF: Empty response from HF")
         raise ValueError("HF API returned empty content")
-    
-    print(f"DEBUG - HF: Raw HF Response:\n{text_response}")
-    
+
     try:
-        result = _parse_json(text_response)
-        print(f"DEBUG - HF: Successfully parsed JSON response: {result}")
-        return result
+        return _parse_json(text_response)
     except Exception as e:
-        print(f"ERROR - HF: Failed to parse JSON response: {e}")
-        print(f"ERROR - HF: Raw text that failed to parse: {text_response}")
+        print(f"ERROR - HF: Failed to parse response: {e}")
+        print(f"ERROR - HF: Raw text: {text_response}")
         raise
 
 
 def analyze_face(image_bytes: bytes) -> dict:
     provider = os.environ.get("LLM_PROVIDER", "genai")
-    print(f"DEBUG - Main: Using LLM provider: {provider}")
-    print(f"DEBUG - Main: Image size: {len(image_bytes)} bytes")
-    
+    print(f"[extract-attributes] provider={provider}, image_size={len(image_bytes)}b")
     try:
         if provider == "huggingface":
-            print(f"DEBUG - Main: Delegating to HuggingFace provider")
-            return _analyze_face_huggingface(image_bytes)
-        print(f"DEBUG - Main: Delegating to GenAI provider")
-        return _analyze_face_genai(image_bytes)
+            result = _analyze_face_huggingface(image_bytes)
+        else:
+            result = _analyze_face_genai(image_bytes)
+        print(f"[extract-attributes] result={result}")
+        return result
     except Exception as e:
-        print(f"ERROR - Main: Error during AI analysis: {str(e)}")
+        print(f"ERROR [extract-attributes]: {str(e)}")
         raise RuntimeError(f"Error during AI analysis: {str(e)}")
+
+
+def _generate_selection_prompt(features: dict) -> str:
+    feature_blocks = []
+    for feature, data in features.items():
+        candidates_text = "\n".join(
+            f"  {i}: \"{c}\"" for i, c in enumerate(data["candidates"])
+        )
+        feature_blocks.append(
+            f"--- {feature} ---\n"
+            f"Description: \"{data['description']}\"\n"
+            f"Candidates:\n{candidates_text}"
+        )
+
+    return f"""You are matching feature descriptions to the closest LEGO part descriptions.
+
+For each feature below, select the candidate that is the closest semantic match to the given description.
+
+{chr(10).join(feature_blocks)}
+
+Return ONLY a valid JSON object with one entry per feature. Each entry must contain:
+- "index": the 0-based position of the chosen candidate (integer)
+- "best_match": the chosen candidate string copied exactly
+
+Example output format:
+{{
+  "hair": {{"index": 0, "best_match": "black short pompadour"}},
+  "beard": {{"index": 2, "best_match": "black full beard"}},
+  "eyes": {{"index": 1, "best_match": "brown almond eyes"}}
+}}
+
+Include every feature from the input. Output only the raw JSON, no markdown, no explanations."""
+
+
+def select_best_matches(features: dict) -> dict:
+    provider = os.environ.get("LLM_PROVIDER", "genai")
+    print(f"[rerank] provider={provider}, features={list(features.keys())}")
+
+    prompt = _generate_selection_prompt(features)
+
+    try:
+        if provider == "huggingface":
+            completion = hf_client.chat.completions.create(
+                model=HF_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text_response = completion.choices[0].message.content if completion.choices else ""
+            if not text_response:
+                raise ValueError("HF API returned empty content")
+            raw = _parse_json(text_response)
+        else:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[prompt],
+            )
+            raw = _parse_json(response.text)
+    except Exception as e:
+        print(f"ERROR [rerank]: LLM call failed: {e}")
+        raise RuntimeError(f"Error during best match selection: {str(e)}")
+
+    result = {}
+    for feature, data in features.items():
+        entry = raw.get(feature, {})
+        index = int(entry["index"])
+        result[feature] = {"index": index, "best_match": data["candidates"][index]}
+
+    print(f"[rerank] result={result}")
+    return result
