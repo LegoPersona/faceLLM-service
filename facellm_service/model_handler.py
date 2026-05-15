@@ -61,7 +61,27 @@ def _parse_json(text: str) -> dict:
         raise
 
 
-def _analyze_face_genai(image_bytes: bytes) -> dict:
+def _extract_genai_tokens(response) -> dict:
+    usage = response.usage_metadata
+    return {
+        "input": getattr(usage, "prompt_token_count", 0) or 0,
+        "output": getattr(usage, "candidates_token_count", 0) or 0,
+        "total": getattr(usage, "total_token_count", 0) or 0,
+    }
+
+
+def _extract_openai_tokens(completion) -> dict:
+    usage = completion.usage
+    if not usage:
+        return {"input": 0, "output": 0, "total": 0}
+    return {
+        "input": usage.prompt_tokens or 0,
+        "output": usage.completion_tokens or 0,
+        "total": usage.total_tokens or 0,
+    }
+
+
+def _analyze_face_genai(image_bytes: bytes) -> tuple[dict, dict]:
     image = Image.open(io.BytesIO(image_bytes))
     try:
         response = client.models.generate_content(
@@ -73,13 +93,13 @@ def _analyze_face_genai(image_bytes: bytes) -> dict:
         raise
 
     try:
-        return _parse_json(response.text)
+        return _parse_json(response.text), _extract_genai_tokens(response)
     except Exception as e:
         print(f"ERROR - GenAI: Failed to parse response: {e}")
         raise
 
 
-def _analyze_face_huggingface(image_bytes: bytes) -> dict:
+def _analyze_face_huggingface(image_bytes: bytes) -> tuple[dict, dict]:
     try:
         data_url = _image_to_data_url(image_bytes)
     except Exception as e:
@@ -111,7 +131,7 @@ def _analyze_face_huggingface(image_bytes: bytes) -> dict:
         raise ValueError("HF API returned empty content")
 
     try:
-        return _parse_json(text_response)
+        return _parse_json(text_response), _extract_openai_tokens(completion)
     except Exception as e:
         print(f"ERROR - HF: Failed to parse response: {e}")
         print(f"ERROR - HF: Raw text: {text_response}")
@@ -123,11 +143,11 @@ def analyze_face(image_bytes: bytes) -> dict:
     print(f"[extract-attributes] provider={provider}, image_size={len(image_bytes)}b")
     try:
         if provider == "huggingface":
-            result = _analyze_face_huggingface(image_bytes)
+            attributes, tokens = _analyze_face_huggingface(image_bytes)
         else:
-            result = _analyze_face_genai(image_bytes)
-        print(f"[extract-attributes] result={result}")
-        return result
+            attributes, tokens = _analyze_face_genai(image_bytes)
+        print(f"[extract-attributes] result={attributes}, tokens={tokens}")
+        return {"attributes": attributes, "tokens_used": tokens}
     except Exception as e:
         print(f"ERROR [extract-attributes]: {str(e)}")
         raise RuntimeError(f"Error during AI analysis: {str(e)}")
@@ -181,12 +201,14 @@ def select_best_matches(features: dict) -> dict:
             if not text_response:
                 raise ValueError("HF API returned empty content")
             raw = _parse_json(text_response)
+            tokens = _extract_openai_tokens(completion)
         else:
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=[prompt],
             )
             raw = _parse_json(response.text)
+            tokens = _extract_genai_tokens(response)
     except Exception as e:
         print(f"ERROR [rerank]: LLM call failed: {e}")
         raise RuntimeError(f"Error during best match selection: {str(e)}")
@@ -197,5 +219,5 @@ def select_best_matches(features: dict) -> dict:
         index = int(entry["index"])
         result[feature] = {"index": index, "best_match": data["candidates"][index]}
 
-    print(f"[rerank] result={result}")
-    return result
+    print(f"[rerank] result={result}, tokens={tokens}")
+    return {"result": result, "tokens_used": tokens}
