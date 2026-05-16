@@ -10,6 +10,8 @@ from openai import OpenAI
 
 GOOGLE_API_KEY = "AIzaSyAcQ7epIN7R0b8HSKKgYk9gw5J4Z18uUDk"
 HF_MODEL = "Qwen/Qwen3.5-9B:together"
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "nemotron3:33b")
 
 client = genai.Client(api_key=GOOGLE_API_KEY)
 
@@ -17,6 +19,8 @@ hf_client = OpenAI(
     base_url="https://router.huggingface.co/v1",
     api_key=os.environ.get("HF_TOKEN", ""),
 )
+
+ollama_client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
 
 
 def generate_prompt():
@@ -138,12 +142,52 @@ def _analyze_face_huggingface(image_bytes: bytes) -> tuple[dict, dict]:
         raise
 
 
+def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
+    try:
+        data_url = _image_to_data_url(image_bytes)
+    except Exception as e:
+        print(f"ERROR - Ollama: Failed to create data URL: {e}")
+        raise
+
+    try:
+        completion = ollama_client.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": generate_prompt()},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            }],
+        )
+    except Exception as e:
+        print(f"ERROR - Ollama: API request failed: {e}")
+        raise
+
+    if not completion.choices:
+        raise ValueError("Ollama returned no choices")
+
+    text_response = completion.choices[0].message.content
+    if not text_response:
+        raise ValueError("Ollama returned empty content")
+
+
+    try:
+        return _parse_json(text_response), _extract_openai_tokens(completion)
+    except Exception as e:
+        print(f"ERROR - Ollama: Failed to parse response: {e}")
+        print(f"ERROR - Ollama: Raw text: {text_response}")
+        raise
+
+
 def analyze_face(image_bytes: bytes) -> dict:
     provider = os.environ.get("LLM_PROVIDER", "genai")
     print(f"[extract-attributes] provider={provider}, image_size={len(image_bytes)}b")
     try:
         if provider == "huggingface":
             attributes, tokens = _analyze_face_huggingface(image_bytes)
+        elif provider == "ollama":
+            attributes, tokens = _analyze_face_ollama(image_bytes)
         else:
             attributes, tokens = _analyze_face_genai(image_bytes)
         print(f"[extract-attributes] result={attributes}, tokens={tokens}")
@@ -200,6 +244,16 @@ def select_best_matches(features: dict) -> dict:
             text_response = completion.choices[0].message.content if completion.choices else ""
             if not text_response:
                 raise ValueError("HF API returned empty content")
+            raw = _parse_json(text_response)
+            tokens = _extract_openai_tokens(completion)
+        elif provider == "ollama":
+            completion = ollama_client.chat.completions.create(
+                model=OLLAMA_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text_response = completion.choices[0].message.content if completion.choices else ""
+            if not text_response:
+                raise ValueError("Ollama returned empty content")
             raw = _parse_json(text_response)
             tokens = _extract_openai_tokens(completion)
         else:
