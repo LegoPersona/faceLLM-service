@@ -26,17 +26,20 @@ ollama_client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
 def generate_prompt():
     return """Analyze the person in the image and describe their physical features to build a Lego character avatar.
 
-For each feature, write a short 2-6 word phrase capturing only the most visually distinctive attributes. These descriptions will be used for semantic vector search to find matching Lego pieces.
+Return ONLY a valid JSON object with two top-level keys: "shapes" and "colors".
 
-Return ONLY a valid JSON object with these exact fields:
+"shapes" contains a short shape/style description for each feature (no color words). These will be used for semantic vector search to find matching Lego pieces by shape.
+"colors" contains only the color for each feature as a hexadecimal color code (e.g. "#000000"). These will be used separately to find matching Lego piece colors.
 
-- hair: color, haircut name if identifiable (e.g. "bob", "mohawk", "pompadour"), combined with style (straight/wavy/curly/slicked), length (short/medium/long). Example: "black short slicked pompadour" or "blonde long wavy"
-- eyebrows: combined shape and color (e.g. "thick brown")
-- eyes: iris color
-- nose: nose shape
-- beard: color and combined style, or "none" if no facial hair (e.g. "black full beard")
-- shirt: color and basic pattern if any
-- pants: color
+Both objects must have the same exact fields:
+
+- hair: shapes = haircut name if identifiable (e.g. "bob", "mohawk", "pompadour"), combined with style (straight/wavy/curly/slicked) and length (short/medium/long). Example: "short slicked pompadour", colors = hair color as hex (e.g. "#000000" for black, "#F5DEB3" for blonde)
+- eyebrows: shapes = shape descriptor (e.g. "thick arched"), colors = eyebrow color as hex (e.g. "#4B3621" for brown)
+- eyes: shapes = eye shape (e.g. "almond", "round"), colors = iris color as hex (e.g. "#1E90FF" for blue, "#4B3621" for brown)
+- nose: shapes = nose shape (e.g. "button", "wide", "pointed"), colors = skin tone as hex (e.g. "#FFDBB4" for light, "#8D5524" for dark)
+- beard: shapes = beard style or "none" if no facial hair (e.g. "full beard", "stubble", "none"), colors = beard color as hex or "#000000" if no facial hair
+- shirt: shapes = basic pattern or style (e.g. "plain", "striped", "graphic tee"), colors = shirt color as hex (e.g. "#FF0000" for red, "#000080" for navy blue)
+- pants: shapes = pants style (e.g. "jeans", "chinos", "shorts"), colors = pants color as hex (e.g. "#000000" for black, "#C3B091" for khaki)
 
 Output only the raw JSON. No markdown, no explanations."""
 
