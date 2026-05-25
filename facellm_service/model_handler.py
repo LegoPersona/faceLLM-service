@@ -86,7 +86,9 @@ _RERANK_SCHEMA = {
 def generate_prompt():
     return """You are an AI component in an automated pipeline. Your output will be parsed directly by code — not read by a human. Any text outside the required JSON format will cause a parsing error and break the pipeline. Analyze the person in the image and describe their physical features to build a Lego character avatar.
 
-Return ONLY a valid JSON object that matches this exact template. Replace each placeholder with the appropriate value:
+Return ONLY a valid JSON object that matches this exact template. Replace each placeholder with the appropriate value, keeping in mind the following:
+- Color hex values should represent the perceived color of the feature, similar to the color description, not the literal pixel colors in the image.
+- Keep color hex values of facial hair, eyebrows, and hair THE SAME unless they are clearly, radically different in color. For example, if the person has brown hair and a lighter brown beard, use the same hex for both but describe the beard color as "light brown" in the color description.
 
 {
   "shapes": {
@@ -366,7 +368,7 @@ def select_best_matches(features: dict) -> dict:
                 messages=[{"role": "user", "content": prompt}],
                 response_format=_RERANK_SCHEMA,
                 temperature=0,
-                extra_body={"options": {"num_ctx": 8192}}
+                extra_body={"options": {"num_ctx": 8192}, "think": False}
             )
             text_response = completion.choices[0].message.content if completion.choices else ""
             if not text_response:
