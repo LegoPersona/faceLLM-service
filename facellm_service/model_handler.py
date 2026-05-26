@@ -89,6 +89,7 @@ def generate_prompt():
 Return ONLY a valid JSON object that matches this exact template. Replace each placeholder with the appropriate value, keeping in mind the following:
 - Color hex values should represent the perceived color of the feature, similar to the color description, not the literal pixel colors in the image.
 - Keep color hex values of facial hair, eyebrows, and hair THE SAME unless they are clearly, radically different in color. For example, if the person has brown hair and a lighter brown beard, use the same hex for both but describe the beard color as "light brown" in the color description.
+- Pay close attention to eye color. DO NOT confuse eye color with hair/eyebrow color. If the person has blue eyes and black hair, the hair and eyebrow hex values should be the same (e.g. #1A1A1A) while the eye hex value should be different (e.g. #1E90FF).
 
 {
   "shapes": {
