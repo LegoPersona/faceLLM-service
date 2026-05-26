@@ -11,7 +11,7 @@ from openai import OpenAI
 GOOGLE_API_KEY = "AIzaSyAcQ7epIN7R0b8HSKKgYk9gw5J4Z18uUDk"
 HF_MODEL = "Qwen/Qwen3.5-9B:together"
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "nemotron3:33b")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.5:latest")
 
 client = genai.Client(api_key=GOOGLE_API_KEY)
 
@@ -22,23 +22,137 @@ hf_client = OpenAI(
 
 ollama_client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
 
+_FEATURE_KEYS = ["beard", "eyebrows", "eyes", "hair", "nose", "pants", "shirt"]
+
+_ANALYZE_FACE_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "analyze_face_response",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "shapes": {
+                    "type": "object",
+                    "properties": {k: {"type": "string"} for k in _FEATURE_KEYS},
+                    "required": _FEATURE_KEYS,
+                    "additionalProperties": False,
+                },
+                "colors": {
+                    "type": "object",
+                    "properties": {k: {"type": "string"} for k in _FEATURE_KEYS},
+                    "required": _FEATURE_KEYS,
+                    "additionalProperties": False,
+                },
+                "color_descriptions": {
+                    "type": "object",
+                    "properties": {k: {"type": "string"} for k in _FEATURE_KEYS},
+                    "required": _FEATURE_KEYS,
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["shapes", "colors", "color_descriptions"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+_RERANK_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "rerank_response",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                k: {
+                    "type": "object",
+                    "properties": {
+                        "index": {"type": "integer"},
+                        "best_match": {"type": "string"},
+                    },
+                    "required": ["index", "best_match"],
+                    "additionalProperties": False,
+                }
+                for k in _FEATURE_KEYS
+            },
+            "required": _FEATURE_KEYS,
+            "additionalProperties": False,
+        },
+    },
+}
+
 
 def generate_prompt():
-    return """Analyze the person in the image and describe their physical features to build a Lego character avatar.
+    return """You are an AI component in an automated pipeline. Your output will be parsed directly by code — not read by a human. Any text outside the required JSON format will cause a parsing error and break the pipeline. Analyze the person in the image and describe their physical features to build a Lego character avatar.
 
-For each feature, write a short 2-6 word phrase capturing only the most visually distinctive attributes. These descriptions will be used for semantic vector search to find matching Lego pieces.
+Return ONLY a valid JSON object that matches this exact template. Replace each placeholder with the appropriate value, keeping in mind the following:
+- Color hex values should represent the perceived color of the feature, similar to the color description, not the literal pixel colors in the image.
+- Keep color hex values of facial hair, eyebrows, and hair THE SAME unless they are clearly, radically different in color. For example, if the person has brown hair and a lighter brown beard, use the same hex for both but describe the beard color as "light brown" in the color description.
 
-Return ONLY a valid JSON object with these exact fields:
+{
+  "shapes": {
+    "hair": "<haircut name if identifiable (e.g. bob, mohawk, pompadour) + style (straight/wavy/curly/slicked) + length (short/medium/long). Example: short slicked pompadour>",
+    "eyebrows": "<shape descriptor. Example: thick arched>",
+    "eyes": "<eye shape. Example: almond>",
+    "nose": "<nose shape. Example: button>",
+    "beard": "<beard style, or 'none' if no facial hair. Example: full beard>",
+    "shirt": "<basic pattern or style. Example: plain>",
+    "pants": "<pants style. Example: jeans>"
+  },
+  "colors": {
+    "hair": "<hair color as hex. Example: #1A1A1A for black, #F5DEB3 for blonde>",
+    "eyebrows": "<eyebrow color as hex. Example: #4B3621 for brown>",
+    "eyes": "<iris color as hex. Example: #1E90FF for blue, #4B3621 for brown>",
+    "nose": "<skin tone as hex. Example: #FFDBB4 for light, #8D5524 for dark>",
+    "beard": "<beard color as hex. Use #000000 if no facial hair>",
+    "shirt": "<shirt color as hex. Example: #FF0000 for red>",
+    "pants": "<pants color as hex. Example: #000000 for black>"
+  },
+  "color_descriptions": {
+    "hair": "<hair color in plain text. Example: jet black, platinum blonde>",
+    "eyebrows": "<eyebrow color in plain text. Example: dark brown>",
+    "eyes": "<iris color in plain text. Example: blue, hazel brown>",
+    "nose": "<skin tone in plain text. Example: fair, medium tan, dark brown>",
+    "beard": "<beard color in plain text. Use 'none' if no facial hair. Example: black>",
+    "shirt": "<shirt color in plain text. Example: red, navy blue>",
+    "pants": "<pants color in plain text. Example: black, dark blue denim>"
+  }
+}
 
-- hair: color, haircut name if identifiable (e.g. "bob", "mohawk", "pompadour"), combined with style (straight/wavy/curly/slicked), length (short/medium/long). Example: "black short slicked pompadour" or "blonde long wavy"
-- eyebrows: combined shape and color (e.g. "thick brown")
-- eyes: iris color
-- nose: nose shape
-- beard: color and combined style, or "none" if no facial hair (e.g. "black full beard")
-- shirt: color and basic pattern if any
-- pants: color
+Here is a filled example for reference:
 
-Output only the raw JSON. No markdown, no explanations."""
+{
+  "shapes": {
+    "hair": "short slicked pompadour",
+    "eyebrows": "thick arched",
+    "eyes": "almond",
+    "nose": "button",
+    "beard": "short stubble",
+    "shirt": "plain",
+    "pants": "jeans"
+  },
+  "colors": {
+    "hair": "#1A1A1A",
+    "eyebrows": "#1A1A1A",
+    "eyes": "#4B3621",
+    "nose": "#FFDBB4",
+    "beard": "#1A1A1A",
+    "shirt": "#1C3A6B",
+    "pants": "#2B4B8C"
+  },
+  "color_descriptions": {
+    "hair": "jet black",
+    "eyebrows": "jet black",
+    "eyes": "dark brown",
+    "nose": "fair",
+    "beard": "jet black",
+    "shirt": "navy blue",
+    "pants": "dark blue"
+  }
+}
+
+Your response MUST be a single valid JSON object exactly like the structure above with all three top-level keys (shapes, colors, color_descriptions) — no extra fields, no missing fields, no markdown, no explanations, no code blocks."""
 
 
 def _image_to_data_url(image_bytes: bytes) -> str:
@@ -159,6 +273,9 @@ def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
                     {"type": "image_url", "image_url": {"url": data_url}},
                 ],
             }],
+            response_format=_ANALYZE_FACE_SCHEMA,
+            temperature=0,
+            extra_body={"options": {"num_ctx": 8192}}
         )
     except Exception as e:
         print(f"ERROR - Ollama: API request failed: {e}")
@@ -198,35 +315,33 @@ def analyze_face(image_bytes: bytes) -> dict:
 
 
 def _generate_selection_prompt(features: dict) -> str:
-    feature_blocks = []
-    for feature, data in features.items():
-        candidates_text = "\n".join(
-            f"  {i}: \"{c}\"" for i, c in enumerate(data["candidates"])
-        )
-        feature_blocks.append(
-            f"--- {feature} ---\n"
-            f"Description: \"{data['description']}\"\n"
-            f"Candidates:\n{candidates_text}"
-        )
+    input_obj = {
+        feature: {
+            "description": data["description"],
+            "candidates": [{"index": i, "value": c} for i, c in enumerate(data["candidates"])],
+        }
+        for feature, data in features.items()
+    }
+    input_json = json.dumps(input_obj, indent=2)
 
-    return f"""You are matching feature descriptions to the closest LEGO part descriptions.
+    feature_keys = list(features.keys())
+    template_obj = {k: {"index": "<integer>", "best_match": "<candidate value copied exactly>"} for k in feature_keys}
+    template_json = json.dumps(template_obj, indent=2)
 
-For each feature below, select the candidate that is the closest semantic match to the given description.
+    return f"""You are an AI component in an automated pipeline. Your output will be parsed directly by code — not read by a human. Any text outside the required JSON format will cause a parsing error and break the pipeline.
 
-{chr(10).join(feature_blocks)}
+Your task: for each feature, select the candidate that is visually closest to the given description. COLOR match is the most important factor — prioritize candidates whose color best matches the description, then consider shape/style as a secondary factor.
 
-Return ONLY a valid JSON object with one entry per feature. Each entry must contain:
-- "index": the 0-based position of the chosen candidate (integer)
-- "best_match": the chosen candidate string copied exactly
+INPUT:
+{input_json}
 
-Example output format:
-{{
-  "hair": {{"index": 0, "best_match": "black short pompadour"}},
-  "beard": {{"index": 2, "best_match": "black full beard"}},
-  "eyes": {{"index": 1, "best_match": "brown almond eyes"}}
-}}
+Return ONLY a valid JSON object that matches this exact template. Replace each placeholder with the appropriate value:
 
-Include every feature from the input. Output only the raw JSON, no markdown, no explanations."""
+{template_json}
+
+The "index" must be the integer index of the chosen candidate. The "best_match" must be the candidate "value" string copied exactly.
+
+Your response MUST be a single valid JSON object exactly like the template above — one entry per feature, no extra fields, no markdown, no explanations, no code blocks."""
 
 
 def select_best_matches(features: dict) -> dict:
@@ -234,6 +349,7 @@ def select_best_matches(features: dict) -> dict:
     print(f"[rerank] provider={provider}, features={list(features.keys())}")
 
     prompt = _generate_selection_prompt(features)
+    print(prompt)  # Debug: print the generated prompt
 
     try:
         if provider == "huggingface":
@@ -250,10 +366,14 @@ def select_best_matches(features: dict) -> dict:
             completion = ollama_client.chat.completions.create(
                 model=OLLAMA_MODEL,
                 messages=[{"role": "user", "content": prompt}],
+                response_format=_RERANK_SCHEMA,
+                temperature=0,
+                extra_body={"options": {"num_ctx": 8192}, "think": False}
             )
             text_response = completion.choices[0].message.content if completion.choices else ""
             if not text_response:
                 raise ValueError("Ollama returned empty content")
+            print(f"[rerank] Raw response: {text_response}")
             raw = _parse_json(text_response)
             tokens = _extract_openai_tokens(completion)
         else:
