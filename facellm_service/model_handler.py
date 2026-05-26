@@ -266,13 +266,15 @@ def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
     try:
         completion = ollama_client.chat.completions.create(
             model=OLLAMA_MODEL,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": generate_prompt()},
-                    {"type": "image_url", "image_url": {"url": data_url}},
-                ],
-            }],
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": generate_prompt()},
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                }
+            ],
             response_format=_ANALYZE_FACE_SCHEMA,
             temperature=0,
             extra_body={"options": {"num_ctx": 8192}}
@@ -287,7 +289,6 @@ def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
     text_response = completion.choices[0].message.content
     if not text_response:
         raise ValueError("Ollama returned empty content")
-
 
     try:
         return _parse_json(text_response), _extract_openai_tokens(completion)
@@ -328,7 +329,8 @@ def _generate_selection_prompt(features: dict) -> str:
     template_obj = {k: {"index": "<integer>", "best_match": "<candidate value copied exactly>"} for k in feature_keys}
     template_json = json.dumps(template_obj, indent=2)
 
-    return f"""You are an AI component in an automated pipeline. Your output will be parsed directly by code — not read by a human. Any text outside the required JSON format will cause a parsing error and break the pipeline.
+    return f"""/no_think
+You are an AI component in an automated pipeline. Your output will be parsed directly by code — not read by a human. Any text outside the required JSON format will cause a parsing error and break the pipeline.
 
 Your task: for each feature, select the candidate that is visually closest to the given description. COLOR match is the most important factor — prioritize candidates whose color best matches the description, then consider shape/style as a secondary factor.
 
@@ -365,16 +367,19 @@ def select_best_matches(features: dict) -> dict:
         elif provider == "ollama":
             completion = ollama_client.chat.completions.create(
                 model=OLLAMA_MODEL,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": "{"},
+                ],
                 response_format=_RERANK_SCHEMA,
                 temperature=0,
-                extra_body={"options": {"num_ctx": 8192}, "think": False}
+                extra_body={"options": {"num_ctx": 8192}}
             )
             text_response = completion.choices[0].message.content if completion.choices else ""
             if not text_response:
                 raise ValueError("Ollama returned empty content")
             print(f"[rerank] Raw response: {text_response}")
-            raw = _parse_json(text_response)
+            raw = _parse_json("{" + text_response)
             tokens = _extract_openai_tokens(completion)
         else:
             response = client.models.generate_content(
