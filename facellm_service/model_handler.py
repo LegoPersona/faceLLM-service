@@ -278,7 +278,8 @@ def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
                         {"type": "text", "text": generate_prompt()},
                         {"type": "image_url", "image_url": {"url": data_url}},
                     ],
-                }
+                },
+                {"role": "assistant", "content": "{"},
             ],
             response_format=_ANALYZE_FACE_SCHEMA,
             temperature=0,
@@ -296,7 +297,7 @@ def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
         raise ValueError("Ollama returned empty content")
 
     try:
-        return _parse_json(text_response), _extract_openai_tokens(completion)
+        return _parse_json("{" + text_response), _extract_openai_tokens(completion)
     except Exception as e:
         print(f"ERROR - Ollama: Failed to parse response: {e}")
         print(f"ERROR - Ollama: Raw text: {text_response}")
