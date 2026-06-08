@@ -40,14 +40,14 @@ _ANALYZE_FACE_SCHEMA = {
                 },
                 "colors": {
                     "type": "object",
-                    "properties": {k: {"type": "string"} for k in _FEATURE_KEYS},
-                    "required": _FEATURE_KEYS,
+                    "properties": {**{k: {"type": "string"} for k in _FEATURE_KEYS}, "skin_tone": {"type": "string"}},
+                    "required": _FEATURE_KEYS + ["skin_tone"],
                     "additionalProperties": False,
                 },
                 "color_descriptions": {
                     "type": "object",
-                    "properties": {k: {"type": "string"} for k in _FEATURE_KEYS},
-                    "required": _FEATURE_KEYS,
+                    "properties": {**{k: {"type": "string"} for k in _FEATURE_KEYS}, "skin_tone": {"type": "string"}},
+                    "required": _FEATURE_KEYS + ["skin_tone"],
                     "additionalProperties": False,
                 },
             },
@@ -105,10 +105,11 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
     "hair": "<hair color as hex. Example: #1A1A1A for black, #F5DEB3 for blonde>",
     "eyebrows": "<eyebrow color as hex. Example: #4B3621 for brown>",
     "eyes": "<iris color as hex. Example: #1E90FF for blue, #4B3621 for brown>",
-    "nose": "<skin tone as hex. Example: #FFDBB4 for light, #8D5524 for dark>",
+    "nose": "<nose color as hex (same as skin tone). Example: #FFDBB4 for light, #8D5524 for dark>",
     "beard": "<beard color as hex. Use #000000 if no facial hair>",
     "shirt": "<shirt color as hex. Example: #FF0000 for red>",
-    "pants": "<pants color as hex. Example: #000000 for black>"
+    "pants": "<pants color as hex. Example: #000000 for black>",
+    "skin_tone": "<skin tone as hex. Example: #FFDBB4 for light, #8D5524 for dark>"
   },
   "color_descriptions": {
     "hair": "<hair color in plain text. Example: jet black, platinum blonde>",
@@ -117,7 +118,8 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
     "nose": "<skin tone in plain text. Example: fair, medium tan, dark brown>",
     "beard": "<beard color in plain text. Use 'none' if no facial hair. Example: black>",
     "shirt": "<shirt color in plain text. Example: red, navy blue>",
-    "pants": "<pants color in plain text. Example: black, dark blue denim>"
+    "pants": "<pants color in plain text. Example: black, dark blue denim>",
+    "skin_tone": "<skin tone in plain text. Example: fair, medium tan, dark brown>"
   }
 }
 
@@ -140,7 +142,8 @@ Here is a filled example for reference:
     "nose": "#FFDBB4",
     "beard": "#1A1A1A",
     "shirt": "#1C3A6B",
-    "pants": "#2B4B8C"
+    "pants": "#2B4B8C",
+    "skin_tone": "#FFDBB4"
   },
   "color_descriptions": {
     "hair": "jet black",
@@ -149,7 +152,8 @@ Here is a filled example for reference:
     "nose": "fair",
     "beard": "jet black",
     "shirt": "navy blue",
-    "pants": "dark blue"
+    "pants": "dark blue",
+    "skin_tone": "fair"
   }
 }
 
@@ -274,7 +278,8 @@ def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
                         {"type": "text", "text": generate_prompt()},
                         {"type": "image_url", "image_url": {"url": data_url}},
                     ],
-                }
+                },
+                {"role": "assistant", "content": "{"},
             ],
             response_format=_ANALYZE_FACE_SCHEMA,
             temperature=0,
@@ -292,7 +297,7 @@ def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
         raise ValueError("Ollama returned empty content")
 
     try:
-        return _parse_json(text_response), _extract_openai_tokens(completion)
+        return _parse_json("{" + text_response), _extract_openai_tokens(completion)
     except Exception as e:
         print(f"ERROR - Ollama: Failed to parse response: {e}")
         print(f"ERROR - Ollama: Raw text: {text_response}")
