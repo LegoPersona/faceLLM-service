@@ -4,6 +4,7 @@ import os
 import re
 import io
 
+import requests
 from PIL import Image
 from google import genai
 from openai import OpenAI
@@ -12,6 +13,11 @@ GOOGLE_API_KEY = "AIzaSyAcQ7epIN7R0b8HSKKgYk9gw5J4Z18uUDk"
 HF_MODEL = "Qwen/Qwen3.5-9B:together"
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.5:latest")
+COLMAN_BASE_URL = os.environ.get("COLMAN_BASE_URL", "http://10.10.248.41")
+COLMAN_USERNAME = os.environ.get("COLMAN_USERNAME", "student1")
+COLMAN_PASSWORD = os.environ.get("COLMAN_PASSWORD", "pass123")
+COLMAN_VISION_MODEL = os.environ.get("COLMAN_VISION_MODEL", "gemma3:12b")
+COLMAN_TEXT_MODEL = os.environ.get("COLMAN_TEXT_MODEL", "gpt-oss-120b")
 
 client = genai.Client(api_key=GOOGLE_API_KEY)
 
@@ -304,6 +310,50 @@ def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
         raise
 
 
+def _get_colman_headers() -> dict:
+    credentials = base64.b64encode(f"{COLMAN_USERNAME}:{COLMAN_PASSWORD}".encode()).decode()
+    return {"Authorization": f"Basic {credentials}", "Content-Type": "application/json"}
+
+
+def _analyze_face_colman(image_bytes: bytes) -> tuple[dict, dict]:
+    b64_image = base64.b64encode(image_bytes).decode()
+
+    url = f"{COLMAN_BASE_URL}/api/generate"
+    payload = {
+        "model": COLMAN_VISION_MODEL,
+        "prompt": generate_prompt(),
+        "images": [b64_image],
+        "stream": False,
+        "format": "json",
+        "options": {"temperature": 0.1},
+    }
+
+    try:
+        response = requests.post(url, json=payload, headers=_get_colman_headers(), timeout=120)
+        response.raise_for_status()
+    except Exception as e:
+        print(f"ERROR - Colman: API request failed: {e}")
+        raise
+
+    data = response.json()
+    text_response = data.get("response", "")
+    if not text_response:
+        raise ValueError("Colman API returned empty response")
+
+    tokens = {
+        "input": data.get("prompt_eval_count", 0) or 0,
+        "output": data.get("eval_count", 0) or 0,
+        "total": (data.get("prompt_eval_count", 0) or 0) + (data.get("eval_count", 0) or 0),
+    }
+
+    try:
+        return _parse_json(text_response), tokens
+    except Exception as e:
+        print(f"ERROR - Colman: Failed to parse response: {e}")
+        print(f"ERROR - Colman: Raw text: {text_response}")
+        raise
+
+
 def analyze_face(image_bytes: bytes) -> dict:
     provider = os.environ.get("LLM_PROVIDER", "genai")
     print(f"[extract-attributes] provider={provider}, image_size={len(image_bytes)}b")
@@ -312,6 +362,8 @@ def analyze_face(image_bytes: bytes) -> dict:
             attributes, tokens = _analyze_face_huggingface(image_bytes)
         elif provider == "ollama":
             attributes, tokens = _analyze_face_ollama(image_bytes)
+        elif provider == "colman":
+            attributes, tokens = _analyze_face_colman(image_bytes)
         else:
             attributes, tokens = _analyze_face_genai(image_bytes)
         print(f"[extract-attributes] result={attributes}, tokens={tokens}")
@@ -357,8 +409,7 @@ def select_best_matches(features: dict) -> dict:
     print(f"[rerank] provider={provider}, features={list(features.keys())}")
 
     prompt = _generate_selection_prompt(features)
-    print(prompt)  # Debug: print the generated prompt
-
+    
     try:
         if provider == "huggingface":
             completion = hf_client.chat.completions.create(
@@ -387,6 +438,30 @@ def select_best_matches(features: dict) -> dict:
             print(f"[rerank] Raw response: {text_response}")
             raw = _parse_json("{" + text_response)
             tokens = _extract_openai_tokens(completion)
+        elif provider == "colman":
+            url = f"{COLMAN_BASE_URL}/v1/chat/completions"
+            payload = {
+                "model": COLMAN_TEXT_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+                "max_tokens": 1000,
+            }
+            response = requests.post(url, json=payload, headers=_get_colman_headers(), timeout=120)
+            response.raise_for_status()
+            data = response.json()
+            if not data.get("choices"):
+                raise ValueError("Colman API returned no choices")
+            text_response = data["choices"][0]["message"]["content"]
+            if not text_response:
+                raise ValueError("Colman API returned empty content")
+            print(f"[rerank] Raw response: {text_response}")
+            raw = _parse_json(text_response)
+            usage = data.get("usage", {})
+            tokens = {
+                "input": usage.get("prompt_tokens", 0) or 0,
+                "output": usage.get("completion_tokens", 0) or 0,
+                "total": usage.get("total_tokens", 0) or 0,
+            }
         else:
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
