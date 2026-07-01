@@ -9,10 +9,18 @@ from PIL import Image
 from google import genai
 from openai import OpenAI
 
+# Gemini
 GOOGLE_API_KEY = "AIzaSyAcQ7epIN7R0b8HSKKgYk9gw5J4Z18uUDk"
+
+# HuggingFace
 HF_MODEL = "Qwen/Qwen3.5-9B:together"
+
+# Ollama (local and cloud)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.5:latest")
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "ollama")
+
+# Colman (Requires VPN)
 COLMAN_BASE_URL = os.environ.get("COLMAN_BASE_URL", "http://10.10.248.41")
 COLMAN_USERNAME = os.environ.get("COLMAN_USERNAME", "student1")
 COLMAN_PASSWORD = os.environ.get("COLMAN_PASSWORD", "pass123")
@@ -26,7 +34,7 @@ hf_client = OpenAI(
     api_key=os.environ.get("HF_TOKEN", ""),
 )
 
-ollama_client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
+ollama_client = OpenAI(base_url=OLLAMA_BASE_URL, api_key=OLLAMA_API_KEY)
 
 _FEATURE_KEYS = ["beard", "eyebrows", "eyes", "hair", "nose", "pants", "shirt"]
 
@@ -118,7 +126,7 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
     "skin_tone": "<skin tone as hex. Example: #FFDBB4 for light, #8D5524 for dark>"
   },
   "color_descriptions": {
-    "hair": "<hair color in plain text. Example: jet black, platinum blonde>",
+    "hair": "<hair color in plain text. Example: jet black, light blonde>",
     "eyebrows": "<eyebrow color in plain text. Example: dark brown>",
     "eyes": "<iris color in plain text. Example: blue, hazel brown>",
     "nose": "<skin tone in plain text. Example: fair, medium tan, dark brown>",
@@ -285,7 +293,6 @@ def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
                         {"type": "image_url", "image_url": {"url": data_url}},
                     ],
                 },
-                {"role": "assistant", "content": "{"},
             ],
             response_format=_ANALYZE_FACE_SCHEMA,
             temperature=0,
@@ -303,7 +310,7 @@ def _analyze_face_ollama(image_bytes: bytes) -> tuple[dict, dict]:
         raise ValueError("Ollama returned empty content")
 
     try:
-        return _parse_json("{" + text_response), _extract_openai_tokens(completion)
+        return _parse_json(text_response), _extract_openai_tokens(completion)
     except Exception as e:
         print(f"ERROR - Ollama: Failed to parse response: {e}")
         print(f"ERROR - Ollama: Raw text: {text_response}")
@@ -426,7 +433,6 @@ def select_best_matches(features: dict) -> dict:
                 model=OLLAMA_MODEL,
                 messages=[
                     {"role": "user", "content": prompt},
-                    {"role": "assistant", "content": "{"},
                 ],
                 response_format=_RERANK_SCHEMA,
                 temperature=0,
@@ -436,7 +442,7 @@ def select_best_matches(features: dict) -> dict:
             if not text_response:
                 raise ValueError("Ollama returned empty content")
             print(f"[rerank] Raw response: {text_response}")
-            raw = _parse_json("{" + text_response)
+            raw = _parse_json(text_response)
             tokens = _extract_openai_tokens(completion)
         elif provider == "colman":
             url = f"{COLMAN_BASE_URL}/v1/chat/completions"
