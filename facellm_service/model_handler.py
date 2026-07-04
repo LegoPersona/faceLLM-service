@@ -36,7 +36,7 @@ hf_client = OpenAI(
 
 ollama_client = OpenAI(base_url=OLLAMA_BASE_URL, api_key=OLLAMA_API_KEY)
 
-_FEATURE_KEYS = ["beard", "eyebrows", "eyes", "hair", "nose", "pants", "shirt"]
+_FEATURE_KEYS = ["beard", "eyebrows", "eyes", "glasses", "hair", "nose", "pants", "shirt"]
 
 _ANALYZE_FACE_SCHEMA = {
     "type": "json_schema",
@@ -112,6 +112,7 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
     "eyes": "<eye shape. Example: almond>",
     "nose": "<nose shape. Example: button>",
     "beard": "<beard style, or 'none' if no facial hair. Example: full beard>",
+    "glasses": "<glasses style, or 'none' if no glasses. Example: round glasses>",
     "shirt": "<basic pattern or style. Example: plain>",
     "pants": "<pants style. Example: jeans>"
   },
@@ -121,6 +122,7 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
     "eyes": "<iris color as hex. Example: #1E90FF for blue, #4B3621 for brown>",
     "nose": "<nose color as hex (same as skin tone). Example: #FFDBB4 for light, #8D5524 for dark>",
     "beard": "<beard color as hex. Use #000000 if no facial hair>",
+    "glasses": "<glasses frame color as hex. Use #000000 if no glasses>",
     "shirt": "<shirt color as hex. Example: #FF0000 for red>",
     "pants": "<pants color as hex. Example: #000000 for black>",
     "skin_tone": "<skin tone as hex. Example: #FFDBB4 for light, #8D5524 for dark>"
@@ -131,6 +133,7 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
     "eyes": "<iris color in plain text. Example: blue, hazel brown>",
     "nose": "<skin tone in plain text. Example: fair, medium tan, dark brown>",
     "beard": "<beard color in plain text. Use 'none' if no facial hair. Example: black>",
+    "glasses": "<glasses frame color in plain text. Use 'none' if no glasses. Example: black>",
     "shirt": "<shirt color in plain text. Example: red, navy blue>",
     "pants": "<pants color in plain text. Example: black, dark blue denim>",
     "skin_tone": "<skin tone in plain text. Example: fair, medium tan, dark brown>"
@@ -146,6 +149,7 @@ Here is a filled example for reference:
     "eyes": "almond",
     "nose": "button",
     "beard": "short stubble",
+    "glasses": "square glasses",
     "shirt": "plain",
     "pants": "jeans"
   },
@@ -155,6 +159,7 @@ Here is a filled example for reference:
     "eyes": "#4B3621",
     "nose": "#FFDBB4",
     "beard": "#1A1A1A",
+    "glasses": "#1A1A1A",
     "shirt": "#1C3A6B",
     "pants": "#2B4B8C",
     "skin_tone": "#FFDBB4"
@@ -165,6 +170,7 @@ Here is a filled example for reference:
     "eyes": "dark brown",
     "nose": "fair",
     "beard": "jet black",
+    "glasses": "black",
     "shirt": "navy blue",
     "pants": "dark blue",
     "skin_tone": "fair"
