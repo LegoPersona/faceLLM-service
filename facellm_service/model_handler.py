@@ -54,14 +54,14 @@ _ANALYZE_FACE_SCHEMA = {
                 },
                 "colors": {
                     "type": "object",
-                    "properties": {**{k: {"type": "string"} for k in _FEATURE_KEYS}, "skin_tone": {"type": "string"}},
-                    "required": _FEATURE_KEYS + ["skin_tone"],
+                    "properties": {**{k: {"type": "string"} for k in _FEATURE_KEYS}, "skin_tone": {"type": "string"}, "shirt_secondary": {"type": "string"}, "pants_secondary": {"type": "string"}},
+                    "required": _FEATURE_KEYS + ["skin_tone", "shirt_secondary", "pants_secondary"],
                     "additionalProperties": False,
                 },
                 "color_descriptions": {
                     "type": "object",
-                    "properties": {**{k: {"type": "string"} for k in _FEATURE_KEYS}, "skin_tone": {"type": "string"}},
-                    "required": _FEATURE_KEYS + ["skin_tone"],
+                    "properties": {**{k: {"type": "string"} for k in _FEATURE_KEYS}, "skin_tone": {"type": "string"}, "shirt_secondary": {"type": "string"}, "pants_secondary": {"type": "string"}},
+                    "required": _FEATURE_KEYS + ["skin_tone", "shirt_secondary", "pants_secondary"],
                     "additionalProperties": False,
                 },
             },
@@ -104,6 +104,9 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
 - Color hex values should represent the perceived color of the feature, similar to the color description, not the literal pixel colors in the image.
 - Keep color hex values of facial hair, eyebrows, and hair THE SAME unless they are clearly, radically different in color. For example, if the person has brown hair and a lighter brown beard, use the same hex for both but describe the beard color as "light brown" in the color description.
 - Pay close attention to eye color. DO NOT confuse eye color with hair/eyebrow color. If the person has blue eyes and black hair, the hair and eyebrow hex values should be the same (e.g. #1A1A1A) while the eye hex value should be different (e.g. #1E90FF).
+- For "shirt_secondary" (in both "colors" and "color_descriptions"), only fill it in if the shirt clearly has a second, distinct color (e.g. stripes, contrast trim, a tie, a collar/cuffs in a different color, color-blocking). Otherwise use "" (empty string) for both. Do not guess a second color on a plain solid-color shirt.
+- For "pants_secondary" (in both "colors" and "color_descriptions"), this is the color of the person's shoes. Fill it in whenever shoes are visible in the image, even if their color is close to the pants. If shoes are not visible, use "" (empty string) for both.
+- If the person is wearing a one-piece dress (no separate visible shirt/pants), do not force it into a normal shirt+pants split. Set "shapes.shirt" to the dress's sleeve style instead (e.g. sleeveless/tank top, short sleeves, long sleeves), and set "shapes.pants" to "dress".
 
 {
   "shapes": {
@@ -113,8 +116,8 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
     "nose": "<nose shape. Example: button>",
     "beard": "<beard style, or 'none' if no facial hair. Example: full beard>",
     "glasses": "<glasses style, or 'none' if no glasses. Example: round glasses>",
-    "shirt": "<basic pattern or style. Example: plain>",
-    "pants": "<pants style. Example: jeans>"
+    "shirt": "<pattern and style (e.g. plain, striped, has a tie, tank top, short sleeves, long sleeves, crop top). Example: long sleeves crop top. If a one-piece dress, describe its sleeve style instead (e.g. strapless, short sleeves, long sleeves, sleeveless/tank top)>",
+    "pants": "<style and length (e.g. jeans, shorts, skirt, long pants, short pants). Example: long jeans. If a one-piece dress, use \"dress\">"
   },
   "colors": {
     "hair": "<hair color as hex. Example: #1A1A1A for black, #F5DEB3 for blonde>",
@@ -124,7 +127,9 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
     "beard": "<beard color as hex. Use #000000 if no facial hair>",
     "glasses": "<glasses frame color as hex. Use #000000 if no glasses>",
     "shirt": "<shirt color as hex. Example: #FF0000 for red>",
+    "shirt_secondary": "<hex of a second, clearly distinct shirt color if present (stripes/trim/color-blocking), otherwise \"\">",
     "pants": "<pants color as hex. Example: #000000 for black>",
+    "pants_secondary": "<shoe color as hex if shoes are visible, otherwise \"\">",
     "skin_tone": "<skin tone as hex. Example: #FFDBB4 for light, #8D5524 for dark>"
   },
   "color_descriptions": {
@@ -135,7 +140,9 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
     "beard": "<beard color in plain text. Use 'none' if no facial hair. Example: black>",
     "glasses": "<glasses frame color in plain text. Use 'none' if no glasses. Example: black>",
     "shirt": "<shirt color in plain text. Example: red, navy blue>",
+    "shirt_secondary": "<second shirt color in plain text if present, otherwise \"\". Example: white stripes>",
     "pants": "<pants color in plain text. Example: black, dark blue denim>",
+    "pants_secondary": "<shoe color in plain text if shoes are visible, otherwise \"\". Example: white sneakers>",
     "skin_tone": "<skin tone in plain text. Example: fair, medium tan, dark brown>"
   }
 }
@@ -150,8 +157,8 @@ Here is a filled example for reference:
     "nose": "button",
     "beard": "short stubble",
     "glasses": "square glasses",
-    "shirt": "plain",
-    "pants": "jeans"
+    "shirt": "plain short sleeves",
+    "pants": "long jeans"
   },
   "colors": {
     "hair": "#1A1A1A",
@@ -161,7 +168,9 @@ Here is a filled example for reference:
     "beard": "#1A1A1A",
     "glasses": "#1A1A1A",
     "shirt": "#1C3A6B",
+    "shirt_secondary": "",
     "pants": "#2B4B8C",
+    "pants_secondary": "#FFFFFF",
     "skin_tone": "#FFDBB4"
   },
   "color_descriptions": {
@@ -172,7 +181,9 @@ Here is a filled example for reference:
     "beard": "jet black",
     "glasses": "black",
     "shirt": "navy blue",
+    "shirt_secondary": "",
     "pants": "dark blue",
+    "pants_secondary": "white sneakers",
     "skin_tone": "fair"
   }
 }
