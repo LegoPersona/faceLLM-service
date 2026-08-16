@@ -104,7 +104,7 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
 - Color hex values should represent the perceived color of the feature, similar to the color description, not the literal pixel colors in the image.
 - Keep color hex values of facial hair, eyebrows, and hair THE SAME unless they are clearly, radically different in color. For example, if the person has brown hair and a lighter brown beard, use the same hex for both but describe the beard color as "light brown" in the color description.
 - Pay close attention to eye color. DO NOT confuse eye color with hair/eyebrow color. If the person has blue eyes and black hair, the hair and eyebrow hex values should be the same (e.g. #1A1A1A) while the eye hex value should be different (e.g. #1E90FF).
-- For "shirt_secondary" (in both "colors" and "color_descriptions"), only fill it in if the shirt clearly has a second, distinct color (e.g. stripes, contrast trim, a tie, a collar/cuffs in a different color, color-blocking). Otherwise use "" (empty string) for both. Do not guess a second color on a plain solid-color shirt.
+- For "shirt_secondary" (in both "colors" and "color_descriptions"), only fill it in if the shirt clearly has a second, distinct color (e.g. stripes, contrast trim, a tie in different color, a collar/cuffs in a different color, color-blocking). Otherwise use "" (empty string) for both. Do not guess a second color on a plain solid-color shirt.
 - For "pants_secondary" (in both "colors" and "color_descriptions"), this is the color of the person's shoes. Fill it in whenever shoes are visible in the image, even if their color is close to the pants. If shoes are not visible, use "" (empty string) for both.
 - If the person is wearing a one-piece dress (no separate visible shirt/pants), do not force it into a normal shirt+pants split. Set "shapes.shirt" to the dress's sleeve style instead (e.g. sleeveless/tank top, short sleeves, long sleeves), and set "shapes.pants" to "dress".
 
@@ -168,7 +168,7 @@ Here is a filled example for reference:
     "beard": "#1A1A1A",
     "glasses": "#1A1A1A",
     "shirt": "#1C3A6B",
-    "shirt_secondary": "",
+    "shirt_secondary": "#FF0000",
     "pants": "#2B4B8C",
     "pants_secondary": "#FFFFFF",
     "skin_tone": "#FFDBB4"
@@ -181,7 +181,7 @@ Here is a filled example for reference:
     "beard": "jet black",
     "glasses": "black",
     "shirt": "navy blue",
-    "shirt_secondary": "",
+    "shirt_secondary": "red",
     "pants": "dark blue",
     "pants_secondary": "white sneakers",
     "skin_tone": "fair"
