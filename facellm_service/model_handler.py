@@ -111,9 +111,9 @@ Return ONLY a valid JSON object that matches this exact template. Replace each p
 {
   "shapes": {
     "hair": "<haircut name if identifiable (e.g. bob, mohawk, pompadour) + style (straight/wavy/curly/slicked) + length (short/medium/long). Example: short slicked pompadour>",
-    "eyebrows": "<shape descriptor. Example: thick arched>",
+    "eyebrows": "<shape descriptor. Example: thick arched, Downturned, Upturned>",
     "eyes": "<eye shape. Example: almond>",
-    "nose": "<nose shape. Example: button>",
+    "nose": "<nose shape. Describe length, width, size... Example: small button, long rounded>",
     "beard": "<beard style, or 'none' if no facial hair. Example: full beard>",
     "glasses": "<glasses style, or 'none' if no glasses. Example: round glasses>",
     "shirt": "<pattern and style (e.g. plain, striped, has a tie, tank top, short sleeves, long sleeves, crop top). Example: long sleeves crop top. If a one-piece dress, describe its sleeve style instead (e.g. strapless, short sleeves, long sleeves, sleeveless/tank top)>",
